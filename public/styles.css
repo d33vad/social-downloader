@@ -254,12 +254,19 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-xl);
-    padding: 8px;
+    padding: 12px;
     display: flex;
-    gap: 8px;
-    max-width: 700px;
+    gap: 12px;
+    max-width: 760px;
     margin: 0 auto;
     box-shadow: var(--shadow-lg);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.download-card:focus-within {
+    box-shadow: 0 30px 60px -12px rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.3);
+    transform: translateY(-2px);
 }
 
 .input-wrapper {
@@ -277,8 +284,11 @@ body {
     border: none;
     outline: none;
     color: var(--text-primary);
-    font-size: 1rem;
-    padding: 16px 0;
+    font-size: 1.1rem;
+    /* Larger font for readable input */
+    padding: 18px 0;
+    min-width: 0;
+    /* Prevents flex overflow */
 }
 
 .url-input::placeholder {
@@ -623,30 +633,105 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
+    .container {
+        padding: 0 16px;
+    }
+
     .header {
-        flex-direction: column;
-        gap: 16px;
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 16px 0;
+        flex-wrap: wrap;
     }
 
     .nav {
         gap: 16px;
+        align-items: center;
+        background: var(--bg-card);
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        padding: 12px 24px;
+        justify-content: space-around;
+        border-top: 1px solid var(--border-color);
+        z-index: 100;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .logo {
+        font-size: 1.3rem;
+    }
+
+    .theme-toggle {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+
+    /* Adjust header to not conflict with fixed bottom nav */
+    body {
+        padding-bottom: 70px;
     }
 
     .hero {
-        padding: 40px 0;
+        padding: 40px 0 20px;
     }
 
     .hero-title {
-        font-size: 2rem;
+        font-size: 2.2rem;
+        padding: 0 10px;
+    }
+
+    .hero-subtitle {
+        font-size: 1rem;
+        margin-bottom: 32px;
     }
 
     .download-card {
         flex-direction: column;
+        padding: 8px;
+        background: transparent;
+        box-shadow: none;
+        border: none;
+    }
+
+    .input-wrapper {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        margin-bottom: 0;
+        box-shadow: var(--shadow-card);
     }
 
     .analyze-btn {
         width: 100%;
         justify-content: center;
+        padding: 16px;
+        margin-top: 12px;
+    }
+
+    .platforms-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .platform-card {
+        padding: 16px;
+        gap: 8px;
+    }
+
+    .platform-card span:first-child {
+        font-size: 2rem;
+    }
+
+    .platform-card span:last-child {
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .platforms-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
