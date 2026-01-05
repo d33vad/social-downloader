@@ -194,72 +194,62 @@ app.post('/api/download', async (req, res) => {
 
         console.log(`⬇️ Starting download: ${url} (format: ${formatId})`);
 
-        // Get files before download to compare later
-        const filesBefore = new Set(fs.readdirSync(DOWNLOADS_DIR));
+        // Generate unique ID for this download to loosely identify the file
+        const downloadId = Date.now().toString();
+        // Use a safe output template: ID_Title.ext
+        // --restrict-filenames: avoids special characters
+        // --trim-filenames 100: prevents path length issues
+        const outputTemplate = `${downloadId}_%(title)s.%(ext)s`;
+        const outputPath = path.join(DOWNLOADS_DIR, outputTemplate);
 
         // Build yt-dlp command
         let command;
+        const commonArgs = `--no-playlist -N 8 --no-mtime --restrict-filenames --trim-filenames 100 -o "${outputTemplate}"`;
 
         if (formatId === 'audio') {
-            // Audio only - download best audio and convert to MP3
-            command = `${YT_DLP} --no-playlist -N 8 -x --audio-format mp3 --audio-quality 192K --no-mtime -o "%(title)s.%(ext)s" "${url}"`;
+            // Audio only
+            command = `${YT_DLP} ${commonArgs} -x --audio-format mp3 --audio-quality 192K "${url}"`;
         } else if (formatId === 'best') {
-            // Best quality - prioritize single file for speed (b), then merge if needed (bv*+ba)
-            // Increased fragments to 8 for speed
-            command = `${YT_DLP} --no-playlist -N 8 -f "b/bv*+ba" --merge-output-format mp4 --no-mtime -o "%(title)s.%(ext)s" "${url}"`;
+            // Best quality
+            command = `${YT_DLP} ${commonArgs} -f "b/bv*+ba" --merge-output-format mp4 "${url}"`;
         } else {
-            // Specific format ID - usage concurrent fragments
-            command = `${YT_DLP} --no-playlist -N 8 -f "${formatId}+ba/b" --merge-output-format mp4 --no-mtime -o "%(title)s.%(ext)s" "${url}"`;
+            // Specific format
+            command = `${YT_DLP} ${commonArgs} -f "${formatId}+ba/b" --merge-output-format mp4 "${url}"`;
         }
 
         console.log('Running:', command);
         await runCommand(command, DOWNLOADS_DIR);
 
-        // Find newly created files
-        const filesAfter = fs.readdirSync(DOWNLOADS_DIR);
-        const newFiles = filesAfter
-            .filter(f => !filesBefore.has(f) && !f.endsWith('.part') && !f.endsWith('.ytdl'))
-            .map(f => ({
-                name: f,
-                fullPath: path.join(DOWNLOADS_DIR, f),
-                stats: fs.statSync(path.join(DOWNLOADS_DIR, f))
-            }))
-            .sort((a, b) => b.stats.mtime - a.stats.mtime);
+        // Find the generated file
+        // It should start with the downloadId
+        const files = fs.readdirSync(DOWNLOADS_DIR);
+        const downloadedFile = files.find(f => f.startsWith(downloadId));
 
-        if (newFiles.length > 0) {
-            const downloadedFile = newFiles[0];
-            console.log(`✅ Download complete: ${downloadedFile.name}`);
+        if (downloadedFile) {
+            const fullPath = path.join(DOWNLOADS_DIR, downloadedFile);
+            const stats = fs.statSync(fullPath);
+
+            console.log(`✅ Download complete: ${downloadedFile}`);
+
+            // Return success
+            // We can optionally rename it back to remove the ID for the user download, 
+            // but the browser 'download' attribute handles the save-as name usually.
+            // Let's rely on the browser to name it nicely or just serve it as is.
+            // Actually, for better UX, let's send a nice "filename" property to the frontend
+            // so it can create a download link with a clean name (stripping the ID).
+
+            const cleanName = downloadedFile.substring(downloadId.length + 1); // remove ID and underscore
 
             res.json({
                 success: true,
                 message: 'Download complete!',
-                filename: downloadedFile.name,
-                downloadUrl: `/downloads/${encodeURIComponent(downloadedFile.name)}`,
-                size: formatFileSize(downloadedFile.stats.size)
+                filename: cleanName, // nice name for user
+                actualFilename: downloadedFile, // server name
+                downloadUrl: `/downloads/${encodeURIComponent(downloadedFile)}`,
+                size: formatFileSize(stats.size)
             });
         } else {
-            // Maybe the file already existed, find most recent file
-            const allFiles = fs.readdirSync(DOWNLOADS_DIR)
-                .filter(f => !f.endsWith('.part') && !f.endsWith('.ytdl'))
-                .map(f => ({
-                    name: f,
-                    fullPath: path.join(DOWNLOADS_DIR, f),
-                    stats: fs.statSync(path.join(DOWNLOADS_DIR, f))
-                }))
-                .sort((a, b) => b.stats.mtime - a.stats.mtime);
-
-            if (allFiles.length > 0) {
-                const downloadedFile = allFiles[0];
-                res.json({
-                    success: true,
-                    message: 'Download complete!',
-                    filename: downloadedFile.name,
-                    downloadUrl: `/downloads/${encodeURIComponent(downloadedFile.name)}`,
-                    size: formatFileSize(downloadedFile.stats.size)
-                });
-            } else {
-                throw new Error('Downloaded file not found');
-            }
+            throw new Error('Downloaded file not found on server');
         }
 
     } catch (error) {
