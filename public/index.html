@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Download videos, images, and audio from TikTok, Instagram, YouTube, Twitter, Facebook, and more.">
+    <title>SaveMedia - Universal Social Media Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="bg-animation">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">⬇️</div>
+                <span class="logo-text">SaveMedia</span>
+            </div>
+            <nav class="nav">
+                <a href="#platforms" class="nav-link">Platforms</a>
+                <a href="#features" class="nav-link">Features</a>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <div class="hero-badge"><span>⚡</span> Fast & Free Downloads</div>
+            <h1 class="hero-title">Download from <span class="gradient-text">Any Platform</span></h1>
+            <p class="hero-subtitle">Save videos, images, and audio from TikTok, Instagram, YouTube, Twitter, Facebook, and more.</p>
+
+            <div class="download-card">
+                <div class="input-wrapper">
+                    <input type="text" id="urlInput" class="url-input" placeholder="Paste your link here..." autocomplete="off">
+                    <button id="pasteBtn" class="paste-btn">📋</button>
+                </div>
+                <button id="analyzeBtn" class="analyze-btn">
+                    <span class="btn-text">Analyze Link</span>
+                    <div class="btn-loader hidden"><div class="spinner"></div></div>
+                </button>
+            </div>
+            <div id="platformBadge" class="platform-badge hidden"></div>
+        </section>
+
+        <section id="resultsSection" class="results-section hidden">
+            <div class="results-card">
+                <div class="results-header">
+                    <div class="media-info">
+                        <h3 id="mediaTitle" class="media-title">Media Title</h3>
+                        <div class="media-meta">
+                            <span id="mediaPlatform" class="meta-badge"></span>
+                            <span id="mediaDuration" class="meta-duration"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="format-section">
+                    <h4 class="section-title">📥 Select Format</h4>
+                    <div id="formatsList" class="formats-list"></div>
+                </div>
+                <button id="downloadBtn" class="download-btn" disabled>
+                    <span>⬇️ Download Now</span>
+                </button>
+            </div>
+        </section>
+
+        <section id="platforms" class="platforms-section">
+            <h2 class="section-heading">Supported Platforms</h2>
+            <div class="platforms-grid">
+                <div class="platform-card" style="--platform-color: #00f2ea"><span>🎵</span><span>TikTok</span></div>
+                <div class="platform-card" style="--platform-color: #e4405f"><span>📸</span><span>Instagram</span></div>
+                <div class="platform-card" style="--platform-color: #ff0000"><span>▶️</span><span>YouTube</span></div>
+                <div class="platform-card" style="--platform-color: #1da1f2"><span>🐦</span><span>Twitter/X</span></div>
+                <div class="platform-card" style="--platform-color: #1877f2"><span>👤</span><span>Facebook</span></div>
+                <div class="platform-card" style="--platform-color: #e60023"><span>📌</span><span>Pinterest</span></div>
+                <div class="platform-card" style="--platform-color: #ff4500"><span>🤖</span><span>Reddit</span></div>
+                <div class="platform-card" style="--platform-color: #9146ff"><span>🎮</span><span>Twitch</span></div>
+            </div>
+        </section>
+
+        <section id="features" class="features-section">
+            <h2 class="section-heading">Why Choose SaveMedia?</h2>
+            <div class="features-grid">
+                <div class="feature-card"><div class="feature-icon">⚡</div><h3>Lightning Fast</h3><p>Download in seconds</p></div>
+                <div class="feature-card"><div class="feature-icon">✅</div><h3>No Registration</h3><p>Start immediately</p></div>
+                <div class="feature-card"><div class="feature-icon">🏆</div><h3>HD Quality</h3><p>Up to 4K resolution</p></div>
+                <div class="feature-card"><div class="feature-icon">🎵</div><h3>Audio Extract</h3><p>Convert to MP3</p></div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>© 2026 SaveMedia. Download responsibly.</p>
+        </footer>
+    </div>
+
+    <div id="toast" class="toast hidden"><span class="toast-message"></span></div>
+    <script src="app.js"></script>
+</body>
+</html>
