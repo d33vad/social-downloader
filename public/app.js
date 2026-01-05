@@ -10,6 +10,25 @@ const mediaTitle = document.getElementById('mediaTitle');
 const mediaPlatform = document.getElementById('mediaPlatform');
 const mediaDuration = document.getElementById('mediaDuration');
 const toast = document.getElementById('toast');
+const themeToggle = document.getElementById('themeToggle');
+
+// Theme Toggle Logic
+const savedTheme = localStorage.getItem('theme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
+updateThemeIcon(savedTheme);
+
+themeToggle.addEventListener('click', () => {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+});
+
+function updateThemeIcon(theme) {
+    themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
+}
 
 let selectedFormat = null;
 let currentMediaInfo = null;
