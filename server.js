@@ -22,7 +22,8 @@ app.use('/downloads', express.static(DOWNLOADS_DIR));
 // Find yt-dlp executable
 function getYtDlpPath() {
     // Use python module and ffmpeg-static for reliable execution
-    return `python -m yt_dlp --ffmpeg-location "${ffmpegPath}"`;
+    // Added --force-ipv4 to prevent IPv6 timeouts which are a common cause of slowness
+    return `python -m yt_dlp --ffmpeg-location "${ffmpegPath}" --force-ipv4`;
 }
 
 const YT_DLP = getYtDlpPath();
@@ -82,15 +83,22 @@ app.post('/api/analyze', async (req, res) => {
         console.log(`📊 Analyzing: ${url}`);
 
         // Get video info using yt-dlp
-        const command = `${YT_DLP} -J --no-playlist "${url}"`;
+        // -J: dump JSON
+        // --no-playlist: only single video
+        // --no-warnings: silence stderr to improve parsing speed
+        const command = `${YT_DLP} -J --no-playlist --no-warnings "${url}"`;
+        console.time('yt-dlp-analysis');
         const output = await runCommand(command, DOWNLOADS_DIR);
+        console.timeEnd('yt-dlp-analysis');
         const info = JSON.parse(output);
 
         // Process formats
         const formats = [];
         const seenQualities = new Set();
 
-        if (info.formats && info.formats.length > 0) {
+        // Optimistic processing: some sites return formats in a weird order
+        // We sort by height (quality) descending
+        if (info.formats) {
             // Filter video formats with audio included, or video-only with height
             const videoFormats = info.formats
                 .filter(f => f.vcodec && f.vcodec !== 'none' && f.height)
@@ -184,13 +192,14 @@ app.post('/api/download', async (req, res) => {
 
         if (formatId === 'audio') {
             // Audio only - download best audio and convert to MP3
-            command = `${YT_DLP} --no-playlist -N 4 -x --audio-format mp3 --audio-quality 192K -o "%(title)s.%(ext)s" "${url}"`;
+            command = `${YT_DLP} --no-playlist -N 8 -x --audio-format mp3 --audio-quality 192K --no-mtime -o "%(title)s.%(ext)s" "${url}"`;
         } else if (formatId === 'best') {
             // Best quality - prioritize single file for speed (b), then merge if needed (bv*+ba)
-            command = `${YT_DLP} --no-playlist -N 4 -f "b/bv*+ba" --merge-output-format mp4 -o "%(title)s.%(ext)s" "${url}"`;
+            // Increased fragments to 8 for speed
+            command = `${YT_DLP} --no-playlist -N 8 -f "b/bv*+ba" --merge-output-format mp4 --no-mtime -o "%(title)s.%(ext)s" "${url}"`;
         } else {
             // Specific format ID - usage concurrent fragments
-            command = `${YT_DLP} --no-playlist -N 4 -f "${formatId}+ba/b" --merge-output-format mp4 -o "%(title)s.%(ext)s" "${url}"`;
+            command = `${YT_DLP} --no-playlist -N 8 -f "${formatId}+ba/b" --merge-output-format mp4 --no-mtime -o "%(title)s.%(ext)s" "${url}"`;
         }
 
         console.log('Running:', command);
