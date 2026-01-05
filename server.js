@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const { execSync, exec } = require('child_process');
 const fs = require('fs');
+const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
 const PORT = 3000;
@@ -20,16 +21,8 @@ app.use('/downloads', express.static(DOWNLOADS_DIR));
 
 // Find yt-dlp executable
 function getYtDlpPath() {
-    // Windows path (Local Development)
-    const localWinPath = 'C:\\Users\\User\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python313\\Scripts\\yt-dlp.exe';
-
-    // Check if Windows specific path exists
-    if (fs.existsSync(localWinPath)) {
-        return `"${localWinPath}"`; // Quote path for spaces
-    }
-
-    // Fallback to global command (Docker/Linux)
-    return 'yt-dlp';
+    // Use python module and ffmpeg-static for reliable execution
+    return `python -m yt_dlp --ffmpeg-location "${ffmpegPath}"`;
 }
 
 const YT_DLP = getYtDlpPath();
