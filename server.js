@@ -20,10 +20,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/downloads', express.static(DOWNLOADS_DIR));
 
 // Find yt-dlp executable
+// Find yt-dlp executable
 function getYtDlpPath() {
-    // Use python module and ffmpeg-static for reliable execution
-    // Added --force-ipv4 to prevent IPv6 timeouts which are a common cause of slowness
-    return `python -m yt_dlp --ffmpeg-location "${ffmpegPath}" --force-ipv4`;
+    // Use local binary downloaded by install-binary.js
+    const fileName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    const binaryPath = path.join(__dirname, 'bin', fileName);
+
+    // Fallback: If local binary doesn't exist (dev env maybe?), try global or python module
+    if (!fs.existsSync(binaryPath)) {
+        console.warn('⚠️ Local yt-dlp binary not found in ./bin, falling back to python module');
+        return `python -m yt_dlp --ffmpeg-location "${ffmpegPath}" --force-ipv4`;
+    }
+
+    // Quote path for safety
+    return `"${binaryPath}" --ffmpeg-location "${ffmpegPath}" --force-ipv4`;
 }
 
 const YT_DLP = getYtDlpPath();
