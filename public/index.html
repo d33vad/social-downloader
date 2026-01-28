@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Download videos, images, and audio from TikTok, Instagram, YouTube, Twitter, Facebook, and more.">
+    <meta name="description"
+        content="Download videos, images, and audio from TikTok, Instagram, YouTube, Twitter, Facebook, and more.">
     <title>SaveMedia - Universal Social Media Downloader</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="bg-animation">
         <div class="gradient-orb orb-1"></div>
@@ -33,24 +37,31 @@
         <section class="hero">
             <div class="hero-badge"><span>⚡</span> Fast & Free Downloads</div>
             <h1 class="hero-title">Download from <span class="gradient-text">Any Platform</span></h1>
-            <p class="hero-subtitle">Save videos, images, and audio from TikTok, Instagram, YouTube, Twitter, Facebook, and more.</p>
+            <p class="hero-subtitle">Save videos, images, and audio from TikTok, Instagram, YouTube, Twitter, Facebook,
+                and more.</p>
 
             <div class="download-card">
                 <div class="input-wrapper">
-                    <input type="text" id="urlInput" class="url-input" placeholder="Paste your link here..." autocomplete="off">
-                    <button id="pasteBtn" class="paste-btn">📋</button>
+                    <textarea id="urlInput" class="url-input"
+                        placeholder="Paste one or more links here (one per line)..." rows="1"
+                        autocomplete="off"></textarea>
+                    <button id="pasteBtn" class="paste-btn" title="Paste from clipboard">📋</button>
                 </div>
                 <button id="analyzeBtn" class="analyze-btn">
                     <span class="btn-text">Analyze Link</span>
-                    <div class="btn-loader hidden"><div class="spinner"></div></div>
+                    <div class="btn-loader hidden">
+                        <div class="spinner"></div>
+                    </div>
                 </button>
             </div>
+            <div id="batchInfo" class="batch-info hidden"></div>
             <div id="platformBadge" class="platform-badge hidden"></div>
         </section>
 
         <section id="resultsSection" class="results-section hidden">
             <div class="results-card">
                 <div class="results-header">
+                    <img id="mediaThumbnail" class="media-thumbnail hidden" alt="Media thumbnail">
                     <div class="media-info">
                         <h3 id="mediaTitle" class="media-title">Media Title</h3>
                         <div class="media-meta">
@@ -59,6 +70,22 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Progress Bar -->
+                <div id="progressContainer" class="progress-container hidden">
+                    <div class="progress-header">
+                        <span id="progressStatus">Downloading...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div id="progressBar" class="progress-bar"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <span id="progressSpeed">0 KB/s</span>
+                        <span id="progressETA">ETA: calculating...</span>
+                    </div>
+                </div>
+
                 <div class="format-section">
                     <h4 class="section-title">📥 Select Format</h4>
                     <div id="formatsList" class="formats-list"></div>
@@ -86,10 +113,26 @@
         <section id="features" class="features-section">
             <h2 class="section-heading">Why Choose SaveMedia?</h2>
             <div class="features-grid">
-                <div class="feature-card"><div class="feature-icon">⚡</div><h3>Lightning Fast</h3><p>Download in seconds</p></div>
-                <div class="feature-card"><div class="feature-icon">✅</div><h3>No Registration</h3><p>Start immediately</p></div>
-                <div class="feature-card"><div class="feature-icon">🏆</div><h3>HD Quality</h3><p>Up to 4K resolution</p></div>
-                <div class="feature-card"><div class="feature-icon">🎵</div><h3>Audio Extract</h3><p>Convert to MP3</p></div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Lightning Fast</h3>
+                    <p>Download in seconds</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">✅</div>
+                    <h3>No Registration</h3>
+                    <p>Start immediately</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3>HD Quality</h3>
+                    <p>Up to 4K resolution</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎵</div>
+                    <h3>Audio Extract</h3>
+                    <p>Convert to MP3</p>
+                </div>
             </div>
         </section>
 
@@ -101,4 +144,5 @@
     <div id="toast" class="toast hidden"><span class="toast-message"></span></div>
     <script src="app.js"></script>
 </body>
+
 </html>

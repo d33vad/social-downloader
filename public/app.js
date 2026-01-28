@@ -3,12 +3,20 @@ const urlInput = document.getElementById('urlInput');
 const pasteBtn = document.getElementById('pasteBtn');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const platformBadge = document.getElementById('platformBadge');
+const batchInfo = document.getElementById('batchInfo');
 const resultsSection = document.getElementById('resultsSection');
 const formatsList = document.getElementById('formatsList');
 const downloadBtn = document.getElementById('downloadBtn');
 const mediaTitle = document.getElementById('mediaTitle');
 const mediaPlatform = document.getElementById('mediaPlatform');
 const mediaDuration = document.getElementById('mediaDuration');
+const mediaThumbnail = document.getElementById('mediaThumbnail');
+const progressContainer = document.getElementById('progressContainer');
+const progressBar = document.getElementById('progressBar');
+const progressPercent = document.getElementById('progressPercent');
+const progressStatus = document.getElementById('progressStatus');
+const progressSpeed = document.getElementById('progressSpeed');
+const progressETA = document.getElementById('progressETA');
 const toast = document.getElementById('toast');
 const themeToggle = document.getElementById('themeToggle');
 
@@ -32,6 +40,31 @@ function updateThemeIcon(theme) {
 
 let selectedFormat = null;
 let currentMediaInfo = null;
+let currentDownloadId = null;
+let progressInterval = null;
+let urlQueue = [];
+let isProcessing = false;
+
+// Auto-resize textarea
+urlInput.addEventListener('input', () => {
+    urlInput.style.height = 'auto';
+    urlInput.style.height = Math.min(urlInput.scrollHeight, 150) + 'px';
+
+    const url = urlInput.value.trim();
+    const urls = url.split('\n').filter(u => u.trim());
+
+    if (urls.length > 1) {
+        batchInfo.textContent = `📋 ${urls.length} URLs detected - Will process one at a time`;
+        batchInfo.classList.remove('hidden');
+    } else if (urls.length === 1) {
+        batchInfo.classList.add('hidden');
+        const platform = detectPlatform(urls[0]);
+        updatePlatformBadge(platform);
+    } else {
+        batchInfo.classList.add('hidden');
+        platformBadge.classList.add('hidden');
+    }
+});
 
 // Platform detection patterns
 const platformPatterns = {
@@ -81,24 +114,13 @@ function updatePlatformBadge(platform) {
     }
 }
 
-// Handle URL input changes
-urlInput.addEventListener('input', () => {
-    const url = urlInput.value.trim();
-    if (url) {
-        const platform = detectPlatform(url);
-        updatePlatformBadge(platform);
-    } else {
-        platformBadge.classList.add('hidden');
-    }
-});
-
 // Paste button handler
 pasteBtn.addEventListener('click', async () => {
     try {
         const text = await navigator.clipboard.readText();
         urlInput.value = text;
         urlInput.dispatchEvent(new Event('input'));
-        showToast('Link pasted!', 'success');
+        showToast('Link(s) pasted!', 'success');
     } catch (err) {
         showToast('Failed to paste. Please paste manually.', 'error');
     }
@@ -106,8 +128,38 @@ pasteBtn.addEventListener('click', async () => {
 
 // Analyze button handler
 analyzeBtn.addEventListener('click', async () => {
-    const url = urlInput.value.trim();
+    const urls = urlInput.value.trim().split('\n').filter(u => u.trim());
 
+    if (urls.length === 0) {
+        showToast('Please enter at least one URL', 'error');
+        return;
+    }
+
+    if (urls.length > 1) {
+        // Batch mode
+        urlQueue = [...urls];
+        isProcessing = true;
+        showToast(`🚀 Processing ${urls.length} URLs...`, 'info');
+        processNextUrl();
+    } else {
+        // Single URL
+        await analyzeUrl(urls[0]);
+    }
+});
+
+async function processNextUrl() {
+    if (urlQueue.length === 0) {
+        isProcessing = false;
+        showToast('✅ All URLs processed!', 'success');
+        return;
+    }
+
+    const url = urlQueue.shift();
+    batchInfo.textContent = `⏳ Processing... (${urlQueue.length} remaining)`;
+    await analyzeUrl(url);
+}
+
+async function analyzeUrl(url) {
     if (!url) {
         showToast('Please enter a URL', 'error');
         return;
@@ -120,6 +172,7 @@ analyzeBtn.addEventListener('click', async () => {
     btnLoader.classList.remove('hidden');
     analyzeBtn.disabled = true;
     resultsSection.classList.add('hidden');
+    progressContainer.classList.add('hidden');
 
     try {
         const response = await fetch('/api/analyze', {
@@ -134,18 +187,36 @@ analyzeBtn.addEventListener('click', async () => {
             currentMediaInfo = data;
             displayResults(data);
             showToast('Media found! Select a format to download.', 'success');
+
+            // Update batch info if processing queue
+            if (isProcessing && urlQueue.length > 0) {
+                batchInfo.textContent = `✅ Ready to download (${urlQueue.length} more in queue)`;
+            } else if (isProcessing) {
+                batchInfo.classList.add('hidden');
+                isProcessing = false;
+            }
         } else {
             showToast(data.error || 'Failed to analyze URL', 'error');
+
+            // Continue with next URL if in batch mode
+            if (isProcessing && urlQueue.length > 0) {
+                setTimeout(() => processNextUrl(), 1000);
+            }
         }
     } catch (error) {
         showToast('Error connecting to server. Make sure the server is running.', 'error');
         console.error(error);
+
+        // Continue with next URL if in batch mode
+        if (isProcessing && urlQueue.length > 0) {
+            setTimeout(() => processNextUrl(), 1000);
+        }
     } finally {
         btnText.classList.remove('hidden');
         btnLoader.classList.add('hidden');
         analyzeBtn.disabled = false;
     }
-});
+}
 
 // Display results
 function displayResults(data) {
@@ -154,6 +225,17 @@ function displayResults(data) {
     mediaPlatform.style.background = `${data.platformColor}20`;
     mediaPlatform.style.color = data.platformColor;
     mediaDuration.textContent = data.duration ? `⏱ ${data.duration}` : '';
+
+    // Display thumbnail if available
+    if (data.thumbnail) {
+        mediaThumbnail.src = data.thumbnail;
+        mediaThumbnail.classList.remove('hidden');
+        mediaThumbnail.onerror = () => {
+            mediaThumbnail.classList.add('hidden');
+        };
+    } else {
+        mediaThumbnail.classList.add('hidden');
+    }
 
     // Clear and populate formats
     formatsList.innerHTML = '';
@@ -206,9 +288,9 @@ downloadBtn.addEventListener('click', async () => {
 
     downloadBtn.disabled = true;
     const originalContent = downloadBtn.innerHTML;
-    downloadBtn.innerHTML = '<div class="spinner"></div> <span>Downloading & Converting...</span>';
+    downloadBtn.innerHTML = '<div class="spinner"></div> <span>Starting Download...</span>';
 
-    showToast('⏳ Starting download... Large files may take a minute.', 'info');
+    showToast('⏳ Starting download...', 'info');
 
     try {
         const response = await fetch('/api/download', {
@@ -223,39 +305,125 @@ downloadBtn.addEventListener('click', async () => {
 
         const data = await response.json();
 
-        if (data.success) {
-            showToast(`✅ Download complete! (${data.size})`, 'success');
+        if (data.success && data.downloadId) {
+            currentDownloadId = data.downloadId;
 
-            // Trigger file download
-            const link = document.createElement('a');
-            link.href = data.downloadUrl;
-            link.download = data.filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Show progress container
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressStatus.textContent = 'Initializing...';
+            progressSpeed.textContent = '0 KB/s';
+            progressETA.textContent = 'ETA: calculating...';
 
-            // Show success animation
-            downloadBtn.innerHTML = '<span>✅ Downloaded!</span>';
-            setTimeout(() => {
-                downloadBtn.innerHTML = originalContent;
-                downloadBtn.disabled = false;
-            }, 2000);
+            // Start polling for progress
+            startProgressPolling();
         } else {
-            showToast(data.error || 'Download failed', 'error');
+            showToast(data.error || 'Failed to start download', 'error');
             downloadBtn.innerHTML = originalContent;
             downloadBtn.disabled = false;
         }
     } catch (error) {
-        showToast('Error processing download. Please try again.', 'error');
+        showToast('Error starting download. Please try again.', 'error');
         console.error(error);
         downloadBtn.innerHTML = originalContent;
         downloadBtn.disabled = false;
     }
 });
 
-// Keyboard shortcut: Enter to analyze
-urlInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+// Progress polling
+function startProgressPolling() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+
+    progressInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/progress/${currentDownloadId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                updateProgress(data);
+
+                if (data.status === 'complete') {
+                    clearInterval(progressInterval);
+                    handleDownloadComplete(data);
+                } else if (data.status === 'error') {
+                    clearInterval(progressInterval);
+                    handleDownloadError(data);
+                }
+            } else {
+                clearInterval(progressInterval);
+                showToast('Download tracking lost', 'error');
+                resetDownloadButton();
+            }
+        } catch (error) {
+            console.error('Progress polling error:', error);
+        }
+    }, 500); // Poll every 500ms
+}
+
+function updateProgress(data) {
+    const progress = Math.min(data.progress || 0, 100);
+    progressBar.style.width = `${progress}%`;
+    progressPercent.textContent = `${Math.round(progress)}%`;
+
+    if (data.status === 'downloading') {
+        progressStatus.textContent = '⬇️ Downloading...';
+        progressSpeed.textContent = `⚡ ${data.speed || '0 KB/s'}`;
+        progressETA.textContent = `ETA: ${data.eta || 'calculating...'}`;
+    } else if (data.status === 'converting') {
+        progressStatus.textContent = '🔄 Converting...';
+        progressSpeed.textContent = 'Processing';
+        progressETA.textContent = 'Almost done...';
+    }
+}
+
+function handleDownloadComplete(data) {
+    progressBar.style.width = '100%';
+    progressPercent.textContent = '100%';
+    progressStatus.textContent = '✅ Complete!';
+    progressSpeed.textContent = data.size || '';
+    progressETA.textContent = 'Done!';
+
+    showToast(`✅ Download complete! (${data.size})`, 'success');
+
+    // Trigger file download
+    const link = document.createElement('a');
+    link.href = data.downloadUrl;
+    link.download = data.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Reset after 3 seconds
+    setTimeout(() => {
+        progressContainer.classList.add('hidden');
+        resetDownloadButton();
+
+        // Process next URL if in batch mode
+        if (isProcessing && urlQueue.length > 0) {
+            processNextUrl();
+        }
+    }, 3000);
+}
+
+function handleDownloadError(data) {
+    showToast(data.error || 'Download failed', 'error');
+    progressContainer.classList.add('hidden');
+    resetDownloadButton();
+}
+
+function resetDownloadButton() {
+    downloadBtn.innerHTML = '<span>⬇️ Download Now</span>';
+    downloadBtn.disabled = false;
+}
+
+// Keyboard shortcuts
+urlInput.addEventListener('keydown', (e) => {
+    // Ctrl+Enter to analyze
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
         analyzeBtn.click();
     }
 });
@@ -274,4 +442,4 @@ window.addEventListener('load', () => {
     urlInput.focus();
 });
 
-console.log('🚀 SaveMedia App Loaded - Real Downloads Enabled');
+console.log('🚀 SaveMedia App Loaded - Enhanced with Batch Processing & Progress Tracking');

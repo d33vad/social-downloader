@@ -1,12 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { execSync, exec } = require('child_process');
+const { execSync, exec, spawn } = require('child_process');
 const fs = require('fs');
 const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
 const PORT = 3000;
+
+// Track active downloads for progress monitoring
+const activeDownloads = new Map();
 
 // Create downloads directory
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
@@ -192,72 +195,168 @@ app.post('/api/download', async (req, res) => {
             return res.status(400).json({ error: 'URL and format are required' });
         }
 
-        console.log(`⬇️ Starting download: ${url} (format: ${formatId})`);
-
-        // Generate unique ID for this download to loosely identify the file
         const downloadId = Date.now().toString();
-        // Use a safe output template: ID_Title.ext
-        // --restrict-filenames: avoids special characters
-        // --trim-filenames 100: prevents path length issues
-        const outputTemplate = `${downloadId}_%(title)s.%(ext)s`;
-        const outputPath = path.join(DOWNLOADS_DIR, outputTemplate);
+        console.log(`⬇️ Starting download: ${url} (format: ${formatId}, ID: ${downloadId})`);
 
-        // Build yt-dlp command
-        let command;
-        const commonArgs = `--no-playlist -N 8 --no-mtime --restrict-filenames --trim-filenames 100 -o "${outputTemplate}"`;
+        // Initialize progress tracking
+        activeDownloads.set(downloadId, {
+            progress: 0,
+            status: 'initializing',
+            speed: '0 KB/s',
+            eta: 'calculating...',
+            downloaded: '0 MB',
+            total: '0 MB'
+        });
+
+        const outputTemplate = `${downloadId}_%(title)s.%(ext)s`;
+
+        // Build yt-dlp command arguments
+        let formatArg;
+        let extraArgs = [];
 
         if (formatId === 'audio') {
-            // Audio only
-            command = `${YT_DLP} ${commonArgs} -x --audio-format mp3 --audio-quality 192K "${url}"`;
+            formatArg = 'bestaudio';
+            extraArgs = ['-x', '--audio-format', 'mp3', '--audio-quality', '192K'];
         } else if (formatId === 'best') {
-            // Best quality
-            command = `${YT_DLP} ${commonArgs} -f "b/bv*+ba" --merge-output-format mp4 "${url}"`;
+            formatArg = 'b/bv*+ba';
+            extraArgs = ['--merge-output-format', 'mp4'];
         } else {
-            // Specific format
-            command = `${YT_DLP} ${commonArgs} -f "${formatId}+ba/b" --merge-output-format mp4 "${url}"`;
+            formatArg = `${formatId}+ba/b`;
+            extraArgs = ['--merge-output-format', 'mp4'];
         }
 
-        console.log('Running:', command);
-        await runCommand(command, DOWNLOADS_DIR);
+        // Get yt-dlp path
+        const fileName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+        const ytdlpPath = path.join(__dirname, 'bin', fileName);
 
-        // Find the generated file
-        // It should start with the downloadId
-        const files = fs.readdirSync(DOWNLOADS_DIR);
-        const downloadedFile = files.find(f => f.startsWith(downloadId));
+        const args = [
+            '--newline', // Progress on new lines for easier parsing
+            '--no-playlist',
+            '-N', '8',
+            '--no-mtime',
+            '--restrict-filenames',
+            '--trim-filenames', '100',
+            '--ffmpeg-location', ffmpegPath,
+            '--force-ipv4',
+            '-f', formatArg,
+            ...extraArgs,
+            '-o', outputTemplate,
+            url
+        ];
 
-        if (downloadedFile) {
-            const fullPath = path.join(DOWNLOADS_DIR, downloadedFile);
-            const stats = fs.statSync(fullPath);
+        // Send initial response with download ID
+        res.json({
+            success: true,
+            downloadId: downloadId,
+            message: 'Download started'
+        });
 
-            console.log(`✅ Download complete: ${downloadedFile}`);
+        // Spawn yt-dlp process
+        const ytdlp = spawn(ytdlpPath, args, { cwd: DOWNLOADS_DIR });
 
-            // Return success
-            // We can optionally rename it back to remove the ID for the user download, 
-            // but the browser 'download' attribute handles the save-as name usually.
-            // Let's rely on the browser to name it nicely or just serve it as is.
-            // Actually, for better UX, let's send a nice "filename" property to the frontend
-            // so it can create a download link with a clean name (stripping the ID).
+        let outputBuffer = '';
 
-            const cleanName = downloadedFile.substring(downloadId.length + 1); // remove ID and underscore
+        ytdlp.stdout.on('data', (data) => {
+            outputBuffer += data.toString();
+            const lines = outputBuffer.split('\n');
+            outputBuffer = lines.pop(); // Keep incomplete line in buffer
 
-            res.json({
-                success: true,
-                message: 'Download complete!',
-                filename: cleanName, // nice name for user
-                actualFilename: downloadedFile, // server name
-                downloadUrl: `/downloads/${encodeURIComponent(downloadedFile)}`,
-                size: formatFileSize(stats.size)
+            lines.forEach(line => {
+                // Parse progress from yt-dlp output
+                // Format: [download]  45.2% of 125.5MiB at 2.5MiB/s ETA 00:25
+                const progressMatch = line.match(/\[download\]\s+(\d+\.?\d*)%\s+of\s+~?([\d.]+\w+)\s+at\s+([\d.]+\w+\/s)(?:\s+ETA\s+(\d+:\d+))?/);
+
+                if (progressMatch) {
+                    const progress = parseFloat(progressMatch[1]);
+                    const total = progressMatch[2];
+                    const speed = progressMatch[3];
+                    const eta = progressMatch[4] || 'calculating...';
+
+                    activeDownloads.set(downloadId, {
+                        progress: Math.min(progress, 100),
+                        status: 'downloading',
+                        speed: speed,
+                        eta: eta,
+                        downloaded: `${(progress / 100 * parseFloat(total)).toFixed(1)}${total.replace(/[\d.]/g, '')}`,
+                        total: total
+                    });
+                }
+
+                // Check for merge/conversion status
+                if (line.includes('[Merger]') || line.includes('[ExtractAudio]')) {
+                    activeDownloads.set(downloadId, {
+                        ...activeDownloads.get(downloadId),
+                        status: 'converting',
+                        progress: 95
+                    });
+                }
             });
-        } else {
-            throw new Error('Downloaded file not found on server');
-        }
+        });
+
+        ytdlp.stderr.on('data', (data) => {
+            console.error(`yt-dlp stderr: ${data}`);
+        });
+
+        ytdlp.on('close', (code) => {
+            if (code === 0) {
+                // Find the downloaded file
+                const files = fs.readdirSync(DOWNLOADS_DIR);
+                const downloadedFile = files.find(f => f.startsWith(downloadId));
+
+                if (downloadedFile) {
+                    const fullPath = path.join(DOWNLOADS_DIR, downloadedFile);
+                    const stats = fs.statSync(fullPath);
+                    const cleanName = downloadedFile.substring(downloadId.length + 1);
+
+                    activeDownloads.set(downloadId, {
+                        progress: 100,
+                        status: 'complete',
+                        filename: cleanName,
+                        actualFilename: downloadedFile,
+                        downloadUrl: `/downloads/${encodeURIComponent(downloadedFile)}`,
+                        size: formatFileSize(stats.size)
+                    });
+
+                    console.log(`✅ Download complete: ${downloadedFile}`);
+
+                    // Clean up after 5 minutes
+                    setTimeout(() => {
+                        activeDownloads.delete(downloadId);
+                    }, 5 * 60 * 1000);
+                } else {
+                    activeDownloads.set(downloadId, {
+                        progress: 0,
+                        status: 'error',
+                        error: 'Downloaded file not found'
+                    });
+                }
+            } else {
+                activeDownloads.set(downloadId, {
+                    progress: 0,
+                    status: 'error',
+                    error: `Download failed with code ${code}`
+                });
+            }
+        });
 
     } catch (error) {
-        console.error('Error downloading:', error.message);
+        console.error('Error starting download:', error.message);
         res.status(500).json({
-            error: 'Failed to download. Please try again.',
+            error: 'Failed to start download. Please try again.',
             details: error.message
         });
+    }
+});
+
+// Get download progress
+app.get('/api/progress/:downloadId', (req, res) => {
+    const { downloadId } = req.params;
+    const progress = activeDownloads.get(downloadId);
+
+    if (progress) {
+        res.json({ success: true, ...progress });
+    } else {
+        res.json({ success: false, error: 'Download not found' });
     }
 });
 
